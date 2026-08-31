@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ month_name }} <span class="muted">{{ year }}</span></h1>
+    <p class="muted">Аналитика привычек</p>
+  </div>
+  <div class="month-nav">
+    <a class="btn-icon" href="{{ url_for('daily', year=prev_y, month=prev_m) }}">‹</a>
+    <form method="get" action="" class="inline-form" onsubmit="return false;">
+      <select onchange="location.href='/daily/'+this.value+'/{{ month }}'">
+        {% for yy in range(year-3, year+3) %}
+        <option value="{{ yy }}" {{ 'selected' if yy==year else '' }}>{{ yy }}</option>
+        {% endfor %}
+      </select>
+    </form>
+    <a class="btn-icon" href="{{ url_for('daily', year=next_y, month=next_m) }}">›</a>
+  </div>
+</div>
+
+<div class="top-row">
+  <div class="card chart-card">
+    <div class="card-title">Ежедневный прогресс, %</div>
+    <div class="bars-wrap" id="dayBars"></div>
+  </div>
+  <div class="card progress-card">
+    <div class="card-title">Прогресс</div>
+    <div class="donut-wrap">
+      <div class="css-donut" id="overallDonut" style="--pct: {{ stats.overall_pct }}; --donut-color: var(--sage);">
+        <div class="donut-hole"></div>
+      </div>
+      <div class="donut-center">
+        <div class="donut-pct">{{ stats.overall_pct }}%</div>
+      </div>
+    </div>
+    <div class="donut-sub">{{ stats.total_done }} / {{ stats.total_goal }}</div>
+  </div>
+</div>
+
+<div class="main-grid">
+  <div class="card habit-list-card">
+    <div class="card-title">Ежедневные привычки</div>
+    <table class="habit-names">
+      {% for h in habits %}
+      <tr>
+        <td class="hnum">{{ loop.index }}</td>
+        <td class="hname">{{ h.name }}</td>
+        <td class="hdel">
+          <form method="post" action="{{ url_for('daily_delete', habit_id=h.id) }}">
+            <input type="hidden" name="year" value="{{ year }}">
+            <input type="hidden" name="month" value="{{ month }}">
+            <button class="del-btn" title="Удалить">✕</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+    <form method="post" action="{{ url_for('daily_add') }}" class="add-habit-form">
+      <input type="hidden" name="year" value="{{ year }}">
+      <input type="hidden" name="month" value="{{ month }}">
+      <input type="text" name="name" placeholder="Новая привычка…" required>
+      <input type="number" name="goal" placeholder="цель (раз/мес)" min="1" style="width:110px">
+      <button type="submit">+ Добавить</button>
+    </form>
+  </div>
+
+  <div class="card grid-card">
+    <div class="card-title">{{ ndays }} дней</div>
+    <div class="grid-scroll">
+      <table class="habit-grid">
+        <thead>
+          <tr class="weekday-row">
+            <th></th>
+            {% for d in range(1, ndays+1) %}
+            <th class="{{ 'is-today' if today==(year,month,d) else '' }}">
+              {{ weekdays[(date(year,month,d).weekday())] }}
+            </th>
+            {% endfor %}
+          </tr>
+          <tr class="daynum-row">
+            <th></th>
+            {% for d in range(1, ndays+1) %}
+            <th class="{{ 'is-today' if today==(year,month,d) else '' }}">{{ d }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for h in habits %}
+          <tr>
+            <td class="row-label">{{ loop.index }}</td>
+            {% for d in range(1, ndays+1) %}
+            <td class="{{ 'is-today' if today==(year,month,d) else '' }}">
+              <input type="checkbox" class="daily-check"
+                     data-habit="{{ h.id }}" data-day="{{ d }}"
+                     {{ 'checked' if entries.get((h.id, d), False) else '' }}>
+            </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card top10-card">
+    <div class="card-title">ТОП самых стабильных</div>
+    <table class="top10-table">
+      <thead><tr><th>Привычка</th><th>%</th></tr></thead>
+      <tbody id="top10-body">
+        {% for r in stats.top10 %}
+        <tr><td>{{ r.name }}</td><td>{{ r.percent }}%</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const dayLabels = [{% for d in range(1, ndays+1) %}{{ d }},{% endfor %}];
+const dayPercent = {{ stats.day_percent }};
+
+renderBars(document.getElementById('dayBars'), dayPercent, dayLabels);
+
+document.querySelectorAll('.daily-check').forEach(cb => {
+  cb.addEventListener('change', () => {
+    fetch('/daily/toggle', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({habit_id: cb.dataset.habit, day: cb.dataset.day, year: {{ year }}, month: {{ month }}})
+    }).then(r => r.json()).then(data => {
+      renderBars(document.getElementById('dayBars'), data.stats.day_percent, dayLabels);
+      setDonut(document.getElementById('overallDonut'), data.stats.overall_pct);
+      document.querySelector('.donut-pct').textContent = data.stats.overall_pct + '%';
+      document.querySelector('.donut-sub').textContent = data.stats.total_done + ' / ' + data.stats.total_goal;
+      const tbody = document.getElementById('top10-body');
+      tbody.innerHTML = '';
+      data.stats.top10.forEach(r => {
+        tbody.innerHTML += `<tr><td>${r.name}</td><td>${r.percent}%</td></tr>`;
+      });
+    });
+  });
+});
+</script>
+{% endblock %}

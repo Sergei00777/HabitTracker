@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Трекер Привычек</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="brand-title">Трекер</span>
+      <span class="brand-sub">Привычек</span>
+    </div>
+    <nav class="nav">
+      <a href="{{ url_for('daily', year=year|default(now_y), month=month|default(now_m)) }}"
+         class="nav-link {{ 'active' if active=='daily' else '' }}">
+        <span class="nav-dot dot-daily"></span> Ежедневные
+      </a>
+      <a href="{{ url_for('weekly', year=year|default(now_y), month=month|default(now_m)) }}"
+         class="nav-link {{ 'active' if active=='weekly' else '' }}">
+        <span class="nav-dot dot-weekly"></span> Еженедельные
+      </a>
+      <a href="{{ url_for('monthly', year=year|default(now_y), month=month|default(now_m)) }}"
+         class="nav-link {{ 'active' if active=='monthly' else '' }}">
+        <span class="nav-dot dot-monthly"></span> Ежемесячные
+      </a>
+      <a href="{{ url_for('goals') }}" class="nav-link {{ 'active' if active=='goals' else '' }}">
+        <span class="nav-dot dot-goals"></span> Трекер целей
+      </a>
+    </nav>
+    <button id="theme-toggle" class="theme-toggle" type="button">
+      <span id="theme-icon">🌙</span> <span id="theme-label">Тёмная тема</span>
+    </button>
+  </aside>
+
+  <main class="content">
+    {% block content %}{% endblock %}
+  </main>
+</div>
+
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

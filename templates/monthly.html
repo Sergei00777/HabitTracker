@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ month_name }} <span class="muted">{{ year }}</span></h1>
+    <p class="muted">Ежемесячные привычки</p>
+  </div>
+  <div class="month-nav">
+    <a class="btn-icon" href="{{ url_for('monthly', year=prev_y, month=prev_m) }}">‹</a>
+    <a class="btn-icon" href="{{ url_for('monthly', year=next_y, month=next_m) }}">›</a>
+  </div>
+</div>
+
+<div class="top-row">
+  <div class="card progress-card">
+    <div class="card-title">Ежемесячные привычки</div>
+    <div class="donut-wrap">
+      <div class="css-donut" id="monthDonut" style="--pct: {{ stats.percent }}; --donut-color: var(--sage);">
+        <div class="donut-hole"></div>
+      </div>
+      <div class="donut-center"><div class="donut-pct" id="donutPctText">{{ stats.percent }}%</div></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Показатель</div>
+    <table class="stat-table">
+      <tr><td>% Завершённых</td><td id="statPct">{{ stats.percent }}%</td></tr>
+      <tr><td>Завершённые</td><td id="statDone">{{ stats.done }}</td></tr>
+      <tr><td>Незавершённые</td><td id="statLeft">{{ stats.total - stats.done }}</td></tr>
+      <tr><td>Всего привычек</td><td id="statTotal">{{ stats.total }}</td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="card checklist-card">
+  <div class="card-title">{{ month_name }} {{ year }}</div>
+  <table class="checklist-table">
+    {% for h in habits %}
+    <tr>
+      <td class="{{ 'done-text' if entries.get(h.id, False) else '' }}">{{ h.name }}</td>
+      <td class="check-cell">
+        <input type="checkbox" class="monthly-check" data-habit="{{ h.id }}"
+               {{ 'checked' if entries.get(h.id, False) else '' }}>
+      </td>
+      <td class="hdel">
+        <form method="post" action="{{ url_for('monthly_delete', habit_id=h.id) }}">
+          <input type="hidden" name="year" value="{{ year }}">
+          <input type="hidden" name="month" value="{{ month }}">
+          <button class="del-btn" title="Удалить">✕</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  <form method="post" action="{{ url_for('monthly_add') }}" class="add-habit-form">
+    <input type="hidden" name="year" value="{{ year }}">
+    <input type="hidden" name="month" value="{{ month }}">
+    <input type="text" name="name" placeholder="Новая привычка…" required>
+    <button type="submit">+ Добавить</button>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll('.monthly-check').forEach(cb => {
+  cb.addEventListener('change', () => {
+    fetch('/monthly/toggle', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({habit_id: cb.dataset.habit, year: {{ year }}, month: {{ month }}})
+    }).then(r => r.json()).then(data => {
+      cb.closest('tr').querySelector('td').classList.toggle('done-text', data.done);
+      setDonut(document.getElementById('monthDonut'), data.stats.percent);
+      document.getElementById('donutPctText').textContent = data.stats.percent + '%';
+      document.getElementById('statPct').textContent = data.stats.percent + '%';
+      document.getElementById('statDone').textContent = data.stats.done;
+      document.getElementById('statLeft').textContent = data.stats.total - data.stats.done;
+      document.getElementById('statTotal').textContent = data.stats.total;
+    });
+  });
+});
+</script>
+{% endblock %}

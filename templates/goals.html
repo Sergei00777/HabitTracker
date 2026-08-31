@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Трекер целей</h1>
+    <p class="muted">Планируй на неделю, месяц и год</p>
+  </div>
+</div>
+
+<div class="top-row">
+  <div class="card">
+    <div class="card-title">Сферы жизни</div>
+    <table class="stat-table">
+      <tr><th>Категория</th><th>Достигнуто</th><th>Прогресс</th></tr>
+      {% for sphere, counts in spheres.items() %}
+      <tr>
+        <td>{{ sphere }}</td>
+        <td>{{ counts[0] }} / {{ counts[1] }}</td>
+        <td>{{ (counts[0]/counts[1]*100)|round|int if counts[1] else 0 }}%</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  <div class="card progress-card">
+    <div class="card-title">Достигнуто</div>
+    <div class="donut-wrap">
+      <div class="css-donut" id="goalsDonut" style="--pct: {{ overall_pct }}; --donut-color: var(--sage);">
+        <div class="donut-hole"></div>
+      </div>
+      <div class="donut-center"><div class="donut-pct">{{ done_total }}/{{ total }}</div></div>
+    </div>
+    <div class="donut-sub">{{ overall_pct }}% целей закрыто</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">Добавить цель</div>
+  <form method="post" action="{{ url_for('goals_add') }}" class="goal-add-form">
+    <input type="text" name="title" placeholder="Название цели" required>
+    <input type="text" name="sphere" placeholder="Сфера жизни (Финансы, Карьера…)">
+    <input type="text" name="reward" placeholder="Награда">
+    <input type="date" name="deadline">
+    <button type="submit">+ Добавить цель</button>
+  </form>
+</div>
+
+<div class="goals-board">
+  {% for g in goals %}
+  <div class="card goal-card {{ 'goal-done' if g.status=='done' else '' }}">
+    <div class="goal-card-header">
+      <span class="goal-sphere">{{ g.sphere }}</span>
+      <form method="post" action="{{ url_for('goals_delete', goal_id=g.id) }}">
+        <button class="del-btn" title="Удалить">✕</button>
+      </form>
+    </div>
+    <h3 class="goal-title">{{ g.title }}</h3>
+    {% if g.reward %}<div class="goal-reward">🎁 {{ g.reward }}</div>{% endif %}
+
+    <table class="goal-meta">
+      <tr>
+        <td>Статус</td>
+        <td>
+          <form method="post" action="{{ url_for('goals_status', goal_id=g.id) }}" class="inline-form">
+            <select name="status" onchange="this.form.submit()">
+              <option value="in_progress" {{ 'selected' if g.status=='in_progress' else '' }}>В процессе</option>
+              <option value="done" {{ 'selected' if g.status=='done' else '' }}>✓ Достигнуто</option>
+            </select>
+          </form>
+        </td>
+      </tr>
+      {% if g.deadline %}<tr><td>Дедлайн</td><td>{{ g.deadline }}</td></tr>{% endif %}
+      <tr><td>Прогресс</td><td>{{ g.progress }}%</td></tr>
+    </table>
+
+    <div class="goal-steps">
+      <div class="goal-steps-title">Шаги к достижению цели</div>
+      {% for s in g.steps %}
+      <label class="step-row">
+        <input type="checkbox" class="step-check" data-step="{{ s.id }}" {{ 'checked' if s.done else '' }}>
+        <span class="{{ 'step-done' if s.done else '' }}">{{ s.text }}</span>
+      </label>
+      {% endfor %}
+      <form method="post" action="{{ url_for('goals_step_add', goal_id=g.id) }}" class="add-step-form">
+        <input type="text" name="text" placeholder="Новый шаг…" required>
+        <button type="submit">+</button>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll('.step-check').forEach(cb => {
+  cb.addEventListener('change', () => {
+    fetch('/goals/step/toggle', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({step_id: cb.dataset.step})
+    }).then(r => r.json()).then(data => {
+      cb.nextElementSibling.classList.toggle('step-done', data.done);
+    });
+  });
+});
+</script>
+{% endblock %}
