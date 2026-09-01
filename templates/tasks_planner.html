@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block content %}
+{% if mode == 'daily' %}
+<div class="page-header">
+  <div>
+    <h1>Дневной планер</h1>
+    <p class="muted">{{ the_date.strftime('%d.%m.%Y') }} &middot; {{ ['понедельник','вторник','среда','четверг','пятница','суббота','воскресенье'][the_date.weekday()] }}</p>
+  </div>
+  <div class="month-nav">
+    <a class="btn-icon" href="{{ url_for('tasks_planner_daily', iso_date=prev_date) }}">‹</a>
+    <a class="btn-icon" href="{{ url_for('tasks_planner_daily') }}">Сегодня</a>
+    <a class="btn-icon" href="{{ url_for('tasks_planner_daily', iso_date=next_date) }}">›</a>
+  </div>
+</div>
+
+<div class="tasks-top-grid" style="grid-template-columns: 1fr 1fr;">
+  <div class="card">
+    <div class="card-title">Топ-3 приоритета на сегодня</div>
+    <table class="stat-table">
+      {% for t in top3 %}
+      <tr><td>{{ loop.index }}</td><td>{{ t.title }}</td><td class="badge badge-{{ t.priority }}">{{ t.priority }}</td></tr>
+      {% else %}
+      <tr><td class="muted">Нет открытых задач</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+  <div class="card">
+    <div class="card-title">Ближайшие дедлайны</div>
+    <table class="stat-table">
+      {% for t in upcoming %}
+      <tr><td>{{ t.title }}</td><td class="muted">{{ t.due_date }}</td></tr>
+      {% else %}<tr><td class="muted">Нет задач со сроком</td></tr>{% endfor %}
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">Расписание дня</div>
+  <table class="planner-table">
+    {% for slot in schedule %}
+    <tr>
+      <td class="planner-time">{{ slot.time }}</td>
+      <td>
+        <select class="planner-select slot-edit" data-date="{{ the_date.isoformat() }}" data-time="{{ slot.time }}">
+          <option value="">—</option>
+          {% for t in open_tasks %}
+          <option value="{{ t.id }}" {{ 'selected' if slot.task_id==t.id else '' }}>{{ t.title }}</option>
+          {% endfor %}
+        </select>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+
+{% else %}
+<div class="page-header">
+  <div>
+    <h1>Недельный планер</h1>
+    <p class="muted">Неделя с {{ the_date.strftime('%d.%m.%Y') }}</p>
+  </div>
+  <div class="month-nav">
+    <a class="btn-icon" href="{{ url_for('tasks_planner_weekly', iso_date=prev_date) }}">‹</a>
+    <a class="btn-icon" href="{{ url_for('tasks_planner_weekly') }}">Эта неделя</a>
+    <a class="btn-icon" href="{{ url_for('tasks_planner_weekly', iso_date=next_date) }}">›</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">Расписание недели</div>
+  <div style="overflow-x:auto;">
+  <div class="week-planner-grid" style="min-width:900px;">
+    <div class="wp-cell wp-head"></div>
+    {% for d in days %}
+    <div class="wp-cell wp-head">{{ ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'][d.weekday()] }}<br>{{ d.strftime('%d.%m') }}</div>
+    {% endfor %}
+    {% for i in range(week_schedule[days[0].isoformat()]|length) %}
+      <div class="wp-cell">{{ week_schedule[days[0].isoformat()][i].time }}</div>
+      {% for d in days %}
+      {% set slot = week_schedule[d.isoformat()][i] %}
+      <div class="wp-cell">
+        <select class="slot-edit" data-date="{{ d.isoformat() }}" data-time="{{ slot.time }}">
+          <option value="">—</option>
+          {% for t in open_tasks %}
+          <option value="{{ t.id }}" {{ 'selected' if slot.task_id==t.id else '' }}>{{ t.title }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endfor %}
+    {% endfor %}
+  </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll('.slot-edit').forEach(sel => {
+  sel.addEventListener('change', () => {
+    fetch('/tasks/planner/set', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({date: sel.dataset.date, time: sel.dataset.time, task_id: sel.value || null, note: ''})
+    });
+  });
+});
+</script>
+{% endblock %}

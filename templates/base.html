@@ -31,6 +31,20 @@
       <a href="{{ url_for('goals') }}" class="nav-link {{ 'active' if active=='goals' else '' }}">
         <span class="nav-dot dot-goals"></span> Трекер целей
       </a>
+      <div class="nav-sep"></div>
+      <a href="{{ url_for('tasks_list') }}" class="nav-link {{ 'active' if active=='tasks' else '' }}">
+        <span class="nav-dot dot-tasks"></span> Трекер задач
+      </a>
+      {% if active == 'tasks' %}
+      <div class="subnav">
+        <a href="{{ url_for('tasks_list') }}" class="subnav-link {{ 'active' if tasks_tab=='list' else '' }}">Задачи</a>
+        <a href="{{ url_for('tasks_kanban') }}" class="subnav-link {{ 'active' if tasks_tab=='kanban' else '' }}">Канбан-доска</a>
+        <a href="{{ url_for('tasks_matrix') }}" class="subnav-link {{ 'active' if tasks_tab=='matrix' else '' }}">Матрица Эйзенхауэра</a>
+        <a href="{{ url_for('tasks_calendar', year=now_y, month=now_m) }}" class="subnav-link {{ 'active' if tasks_tab=='calendar' else '' }}">Смарт календарь</a>
+        <a href="{{ url_for('tasks_planner_daily') }}" class="subnav-link {{ 'active' if tasks_tab=='daily' else '' }}">Дневной планер</a>
+        <a href="{{ url_for('tasks_planner_weekly') }}" class="subnav-link {{ 'active' if tasks_tab=='weekly' else '' }}">Недельный планер</a>
+      </div>
+      {% endif %}
     </nav>
     <button id="theme-toggle" class="theme-toggle" type="button">
       <span id="theme-icon">🌙</span> <span id="theme-label">Тёмная тема</span>

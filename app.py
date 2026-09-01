@@ -1,10 +1,12 @@
-from datetime import date
+from datetime import date, timedelta
+import calendar
 from flask import Flask, render_template, request, redirect, url_for, jsonify
 
 import database as db
 
 app = Flask(__name__)
 db.init_db(seed=True)
+db.init_tasks_db()
 
 
 def today_ym():
@@ -204,6 +206,158 @@ def goals_step_toggle():
     done = db.toggle_goal_step(int(data["step_id"]))
     goal_list, spheres, done_total, total, overall_pct = db.get_goals()
     return jsonify({"done": done, "done_total": done_total, "total": total, "overall_pct": overall_pct})
+
+
+# ================================================================
+# ТРЕКЕР ЗАДАЧ
+# ================================================================
+
+@app.route("/tasks")
+def tasks_list():
+    status = request.args.get("status") or None
+    priority = request.args.get("priority") or None
+    assignee = request.args.get("assignee") or None
+    category = request.args.get("category") or None
+    q = request.args.get("q") or None
+    tasks = db.get_tasks(status=status, priority=priority, assignee=assignee, category=category, q=q)
+    stats = db.task_stats()
+    return render_template(
+        "tasks_list.html", tasks=tasks, stats=stats,
+        statuses=db.STATUSES, priorities=db.PRIORITIES,
+        assignees=db.distinct_values("assignee"), categories=db.distinct_values("category"),
+        f_status=status, f_priority=priority, f_assignee=assignee, f_category=category, f_q=q or "",
+        active="tasks", tasks_tab="list",
+    )
+
+
+@app.route("/tasks/add", methods=["POST"])
+def tasks_add():
+    f = request.form
+    db.add_task(
+        f.get("title", ""), f.get("due_date", ""), f.get("assignee", ""),
+        f.get("status", "Не начато"), f.get("category", ""), f.get("priority", "Средний"),
+        f.get("important") == "on", f.get("urgent") == "on", f.get("description", ""),
+    )
+    return redirect(request.referrer or url_for("tasks_list"))
+
+
+@app.route("/tasks/update/<int:task_id>", methods=["POST"])
+def tasks_update(task_id):
+    f = request.form
+    fields = {}
+    for key in ("title", "due_date", "assignee", "status", "category", "priority", "description"):
+        if key in f:
+            fields[key] = f.get(key)
+    if "important" in f:
+        fields["important"] = int(f.get("important") == "on")
+    if "urgent" in f:
+        fields["urgent"] = int(f.get("urgent") == "on")
+    db.update_task(task_id, **fields)
+    return redirect(request.referrer or url_for("tasks_list"))
+
+
+@app.route("/tasks/delete/<int:task_id>", methods=["POST"])
+def tasks_delete(task_id):
+    db.delete_task(task_id)
+    return redirect(request.referrer or url_for("tasks_list"))
+
+
+@app.route("/tasks/status/<int:task_id>", methods=["POST"])
+def tasks_status(task_id):
+    data = request.get_json()
+    db.update_task(task_id, status=data["status"])
+    return jsonify({"ok": True, "stats": db.task_stats()})
+
+
+@app.route("/tasks/field/<int:task_id>", methods=["POST"])
+def tasks_field(task_id):
+    data = request.get_json()
+    field, value = data["field"], data["value"]
+    if field in ("important", "urgent"):
+        value = int(bool(value))
+    db.update_task(task_id, **{field: value})
+    return jsonify({"ok": True})
+
+
+@app.route("/tasks/kanban")
+def tasks_kanban():
+    assignee = request.args.get("assignee") or None
+    tasks = db.get_tasks(assignee=assignee)
+    columns = {s: [t for t in tasks if t["status"] == s] for s in db.STATUSES}
+    return render_template(
+        "tasks_kanban.html", columns=columns, statuses=db.STATUSES,
+        assignees=db.distinct_values("assignee"), f_assignee=assignee,
+        active="tasks", tasks_tab="kanban",
+    )
+
+
+@app.route("/tasks/matrix")
+def tasks_matrix():
+    assignee = request.args.get("assignee") or None
+    quads, pct = db.matrix_tasks(assignee=assignee)
+    return render_template(
+        "tasks_matrix.html", quads=quads, pct=pct,
+        assignees=db.distinct_values("assignee"), f_assignee=assignee,
+        active="tasks", tasks_tab="matrix",
+    )
+
+
+@app.route("/tasks/calendar/<int:year>/<int:month>")
+def tasks_calendar(year, month):
+    by_day = db.calendar_tasks(year, month)
+    cal = calendar.Calendar(firstweekday=0)
+    weeks = cal.monthdayscalendar(year, month)
+    prev_m, prev_y = (12, year - 1) if month == 1 else (month - 1, year)
+    next_m, next_y = (1, year + 1) if month == 12 else (month + 1, year)
+    t = date.today()
+    return render_template(
+        "tasks_calendar.html", weeks=weeks, by_day=by_day, year=year, month=month,
+        month_name=db.MONTHS_RU[month], prev_y=prev_y, prev_m=prev_m, next_y=next_y, next_m=next_m,
+        today=(t.year, t.month, t.day),
+        active="tasks", tasks_tab="calendar",
+    )
+
+
+@app.route("/tasks/planner/daily")
+@app.route("/tasks/planner/daily/<iso_date>")
+def tasks_planner_daily(iso_date=None):
+    d = date.fromisoformat(iso_date) if iso_date else date.today()
+    schedule = db.get_schedule(d.isoformat())
+    open_tasks = db.get_tasks()
+    open_tasks = [t for t in open_tasks if t["status"] != "Выполнено"]
+    prio_order = {"Критичный": 0, "Высокий": 1, "Средний": 2, "Низкий": 3}
+    top3 = sorted(open_tasks, key=lambda t: prio_order.get(t["priority"], 9))[:3]
+    upcoming = sorted([t for t in db.get_tasks() if t["due_date"] and t["status"] != "Выполнено"],
+                       key=lambda t: t["due_date"])[:8]
+    return render_template(
+        "tasks_planner.html", mode="daily", the_date=d, schedule=schedule,
+        open_tasks=open_tasks, upcoming=upcoming, top3=top3,
+        prev_date=(d - timedelta(days=1)).isoformat(), next_date=(d + timedelta(days=1)).isoformat(),
+        active="tasks", tasks_tab="daily",
+    )
+
+
+@app.route("/tasks/planner/weekly")
+@app.route("/tasks/planner/weekly/<iso_date>")
+def tasks_planner_weekly(iso_date=None):
+    start = date.fromisoformat(iso_date) if iso_date else date.today()
+    start = start - timedelta(days=start.weekday())  # понедельник
+    days = [start + timedelta(days=i) for i in range(7)]
+    week_schedule = {d.isoformat(): db.get_schedule(d.isoformat()) for d in days}
+    open_tasks = [t for t in db.get_tasks() if t["status"] != "Выполнено"]
+    return render_template(
+        "tasks_planner.html", mode="weekly", days=days, week_schedule=week_schedule,
+        open_tasks=open_tasks, the_date=start,
+        prev_date=(start - timedelta(days=7)).isoformat(), next_date=(start + timedelta(days=7)).isoformat(),
+        active="tasks", tasks_tab="weekly",
+    )
+
+
+@app.route("/tasks/planner/set", methods=["POST"])
+def tasks_planner_set():
+    data = request.get_json()
+    db.set_schedule_entry(data["date"], data["time"], data.get("task_id") or None, data.get("note", ""))
+    return jsonify({"ok": True})
 
 
 if __name__ == "__main__":

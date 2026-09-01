@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Матрица Эйзенхауэра</h1>
+    <p class="muted">Расстановка приоритетов по важности и срочности</p>
+  </div>
+  <form method="get" class="filters-bar">
+    <select name="assignee" onchange="this.form.submit()">
+      <option value="">Все исполнители</option>
+      {% for a in assignees %}<option value="{{ a }}" {{ 'selected' if f_assignee==a else '' }}>{{ a }}</option>{% endfor %}
+    </select>
+  </form>
+</div>
+
+<div class="matrix-grid">
+  <div class="matrix-quad q1">
+    <h3>Сделать сейчас</h3>
+    <div class="q-sub">Важно и срочно &middot; {{ pct['Сделать сейчас'] }}%</div>
+    {% for t in quads['Сделать сейчас'] %}
+    <div class="matrix-task"><span>{{ t.title }}</span><span class="muted">{{ t.assignee }}</span></div>
+    {% else %}<div class="muted" style="font-size:12px;">Нет задач</div>{% endfor %}
+  </div>
+  <div class="matrix-quad q2">
+    <h3>Запланировать</h3>
+    <div class="q-sub">Важно, не срочно &middot; {{ pct['Запланировать'] }}%</div>
+    {% for t in quads['Запланировать'] %}
+    <div class="matrix-task"><span>{{ t.title }}</span><span class="muted">{{ t.assignee }}</span></div>
+    {% else %}<div class="muted" style="font-size:12px;">Нет задач</div>{% endfor %}
+  </div>
+  <div class="matrix-quad q3">
+    <h3>Делегировать</h3>
+    <div class="q-sub">Не важно, срочно &middot; {{ pct['Делегировать'] }}%</div>
+    {% for t in quads['Делегировать'] %}
+    <div class="matrix-task"><span>{{ t.title }}</span><span class="muted">{{ t.assignee }}</span></div>
+    {% else %}<div class="muted" style="font-size:12px;">Нет задач</div>{% endfor %}
+  </div>
+  <div class="matrix-quad q4">
+    <h3>Исключить</h3>
+    <div class="q-sub">Не важно, не срочно &middot; {{ pct['Исключить'] }}%</div>
+    {% for t in quads['Исключить'] %}
+    <div class="matrix-task"><span>{{ t.title }}</span><span class="muted">{{ t.assignee }}</span></div>
+    {% else %}<div class="muted" style="font-size:12px;">Нет задач</div>{% endfor %}
+  </div>
+</div>
+{% endblock %}

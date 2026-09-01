@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Трекер задач</h1>
+    <p class="muted">Все задачи под контролем</p>
+  </div>
+</div>
+
+<div class="stat-strip">
+  <div class="stat-box"><div class="num">{{ stats.total }}</div><div class="lbl">Всего задач</div></div>
+  <div class="stat-box"><div class="num">{{ stats.in_progress }}</div><div class="lbl">В работе</div></div>
+  <div class="stat-box"><div class="num">{{ stats.done }}</div><div class="lbl">Выполнено</div></div>
+  <div class="stat-box {{ 'warn' if stats.overdue else '' }}"><div class="num">{{ stats.overdue }}</div><div class="lbl">Просрочено</div></div>
+  <div class="stat-box"><div class="num">{{ stats.due7 }}</div><div class="lbl">Срок ≤ 7 дней</div></div>
+  <div class="stat-box"><div class="num">{{ stats.due14 }}</div><div class="lbl">Срок ≤ 14 дней</div></div>
+  <div class="stat-box"><div class="num">{{ stats.due30 }}</div><div class="lbl">Срок ≤ 30 дней</div></div>
+</div>
+
+<div class="tasks-top-grid">
+  <div class="card">
+    <div class="card-title">Ближайшие дедлайны</div>
+    <table class="stat-table">
+      {% for t in stats.upcoming %}
+      <tr><td>{{ t.title }}</td><td class="muted">{{ t.due_date }}</td><td>{{ t.assignee }}</td></tr>
+      {% else %}
+      <tr><td class="muted">Нет задач со сроком</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+
+  <div class="card" style="text-align:center;">
+    <div class="card-title">Прогресс</div>
+    <div class="mini-donut-wrap">
+      <div class="css-donut" style="--pct: {{ stats.progress_pct }}; --donut-color: var(--sage);"><div class="donut-hole"></div></div>
+      <div class="donut-center" style="position:absolute;inset:0;"><div class="donut-pct">{{ stats.progress_pct }}%</div></div>
+    </div>
+    <div class="donut-sub">{{ stats.done }} / {{ stats.total }}</div>
+  </div>
+
+  <div class="card" style="text-align:center;">
+    <div class="card-title">Статусы</div>
+    <div class="mini-donut-wrap">
+      {% set seg = [] %}
+      <div class="css-donut" id="statusDonut" style="--pct: {{ ((stats.done / stats.total * 100) if stats.total else 0)|round|int }}; --donut-color: var(--sage);"><div class="donut-hole"></div></div>
+    </div>
+    <div class="legend">
+      {% for s in ['Выполнено','В процессе','Не начато','В ожидании','Приостановлено'] %}
+      <span class="legend-item"><span class="legend-dot" style="background:{{ {'Выполнено':'#8FA07E','В процессе':'#C99268','Не начато':'#B7B7A8','В ожидании':'#D6B36A','Приостановлено':'#A88AB0'}[s] }}"></span>{{ s }} {{ stats.status_counts[s] }}</span>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Приоритеты</div>
+    {% for p in ['Критичный','Высокий','Средний','Низкий'] %}
+    {% set maxv = stats.priority_counts.values()|max if stats.priority_counts.values()|max > 0 else 1 %}
+    <div class="hbar-row">
+      <div class="hbar-label">{{ p }}</div>
+      <div class="hbar-track"><div class="hbar-fill" style="width: {{ (stats.priority_counts[p]/maxv*100)|round|int }}%; background: {{ {'Критичный':'#941C3A','Высокий':'#A03E15','Средний':'#8A6415','Низкий':'#3E5A2E'}[p] }}"></div></div>
+      <div class="hbar-val">{{ stats.priority_counts[p] }}</div>
+    </div>
+    {% endfor %}
+    {% if stats.workload %}
+    <div class="card-title" style="margin-top:12px;">Нагрузка</div>
+    {% set wmax = stats.workload.values()|max %}
+    {% for person, cnt in stats.workload.items() %}
+    <div class="hbar-row">
+      <div class="hbar-label">{{ person }}</div>
+      <div class="hbar-track"><div class="hbar-fill" style="width: {{ (cnt/wmax*100)|round|int }}%;"></div></div>
+      <div class="hbar-val">{{ cnt }}</div>
+    </div>
+    {% endfor %}
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">Задачи</div>
+  <form method="get" class="filters-bar">
+    <input type="text" name="q" placeholder="Поиск по названию…" value="{{ f_q }}">
+    <select name="status" onchange="this.form.submit()">
+      <option value="">Все статусы</option>
+      {% for s in statuses %}<option value="{{ s }}" {{ 'selected' if f_status==s else '' }}>{{ s }}</option>{% endfor %}
+    </select>
+    <select name="priority" onchange="this.form.submit()">
+      <option value="">Все приоритеты</option>
+      {% for p in priorities %}<option value="{{ p }}" {{ 'selected' if f_priority==p else '' }}>{{ p }}</option>{% endfor %}
+    </select>
+    <select name="assignee" onchange="this.form.submit()">
+      <option value="">Все исполнители</option>
+      {% for a in assignees %}<option value="{{ a }}" {{ 'selected' if f_assignee==a else '' }}>{{ a }}</option>{% endfor %}
+    </select>
+    <select name="category" onchange="this.form.submit()">
+      <option value="">Все категории</option>
+      {% for c in categories %}<option value="{{ c }}" {{ 'selected' if f_category==c else '' }}>{{ c }}</option>{% endfor %}
+    </select>
+    <button type="submit" style="padding:7px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card-bg);color:var(--text);cursor:pointer;font-size:12.5px;">Найти</button>
+    <a href="{{ url_for('tasks_list') }}" class="clear-filters">Сбросить фильтры</a>
+  </form>
+
+  <div class="tasks-table-wrap">
+    <table class="tasks-table">
+      <thead>
+        <tr>
+          <th></th><th>Задача</th><th>Срок</th><th>Осталось</th><th>Исполнитель</th>
+          <th>Статус</th><th>Категория</th><th>Приоритет</th><th>Важно</th><th>Срочно</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in tasks %}
+        <tr class="{{ 'is-done' if t.status=='Выполнено' else '' }}" data-id="{{ t.id }}">
+          <td><input type="checkbox" class="checkflag done-toggle" data-id="{{ t.id }}" {{ 'checked' if t.status=='Выполнено' else '' }}></td>
+          <td>
+            <input type="text" value="{{ t.title }}" class="field-edit" data-field="title" data-id="{{ t.id }}">
+            {% if t.overdue %}<div class="overdue-tag">⚑ Просрочено</div>{% endif %}
+          </td>
+          <td><input type="date" value="{{ t.due_date or '' }}" class="field-edit" data-field="due_date" data-id="{{ t.id }}"></td>
+          <td class="{{ 'days-left-ok' if t.days_left is not none and t.days_left >= 0 else 'overdue-tag' }}">
+            {{ t.days_left if t.days_left is not none else '—' }}
+          </td>
+          <td><input type="text" value="{{ t.assignee }}" class="field-edit" data-field="assignee" data-id="{{ t.id }}"></td>
+          <td>
+            <select class="field-edit status-select" data-field="status" data-id="{{ t.id }}">
+              {% for s in statuses %}<option value="{{ s }}" {{ 'selected' if t.status==s else '' }}>{{ s }}</option>{% endfor %}
+            </select>
+          </td>
+          <td><input type="text" value="{{ t.category }}" class="field-edit" data-field="category" data-id="{{ t.id }}" list="cat-list"></td>
+          <td>
+            <select class="field-edit" data-field="priority" data-id="{{ t.id }}">
+              {% for p in priorities %}<option value="{{ p }}" {{ 'selected' if t.priority==p else '' }}>{{ p }}</option>{% endfor %}
+            </select>
+          </td>
+          <td style="text-align:center;"><input type="checkbox" class="checkflag field-flag" data-field="important" data-id="{{ t.id }}" {{ 'checked' if t.important else '' }}></td>
+          <td style="text-align:center;"><input type="checkbox" class="checkflag field-flag" data-field="urgent" data-id="{{ t.id }}" {{ 'checked' if t.urgent else '' }}></td>
+          <td>
+            <form method="post" action="{{ url_for('tasks_delete', task_id=t.id) }}">
+              <button class="del-btn" title="Удалить">✕</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <datalist id="cat-list">
+      {% for c in categories %}<option value="{{ c }}">{% endfor %}
+    </datalist>
+  </div>
+
+  <form method="post" action="{{ url_for('tasks_add') }}" class="add-task-form">
+    <input type="text" name="title" placeholder="Название задачи…" required>
+    <input type="date" name="due_date">
+    <input type="text" name="assignee" placeholder="Исполнитель">
+    <select name="status">{% for s in statuses %}<option value="{{ s }}">{{ s }}</option>{% endfor %}</select>
+    <input type="text" name="category" placeholder="Категория" list="cat-list">
+    <select name="priority">{% for p in priorities %}<option value="{{ p }}" {{ 'selected' if p=='Средний' else '' }}>{{ p }}</option>{% endfor %}</select>
+    <label class="chk"><input type="checkbox" name="important"> Важно</label>
+    <label class="chk"><input type="checkbox" name="urgent"> Срочно</label>
+    <button type="submit">+ Добавить задачу</button>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll('.done-toggle').forEach(cb => {
+  cb.addEventListener('change', () => {
+    fetch('/tasks/status/' + cb.dataset.id, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({status: cb.checked ? 'Выполнено' : 'Не начато'})
+    }).then(() => location.reload());
+  });
+});
+document.querySelectorAll('.status-select').forEach(sel => {
+  sel.addEventListener('change', () => {
+    fetch('/tasks/status/' + sel.dataset.id, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({status: sel.value})
+    }).then(() => location.reload());
+  });
+});
+document.querySelectorAll('.field-edit:not(.status-select)').forEach(el => {
+  el.addEventListener('change', () => {
+    fetch('/tasks/field/' + el.dataset.id, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({field: el.dataset.field, value: el.value})
+    });
+  });
+});
+document.querySelectorAll('.field-flag').forEach(el => {
+  el.addEventListener('change', () => {
+    fetch('/tasks/field/' + el.dataset.id, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({field: el.dataset.field, value: el.checked})
+    });
+  });
+});
+</script>
+{% endblock %}

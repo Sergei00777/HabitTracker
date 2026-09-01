@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Канбан-доска</h1>
+    <p class="muted">Перетаскивай карточки между статусами</p>
+  </div>
+  <form method="get" class="filters-bar">
+    <select name="assignee" onchange="this.form.submit()">
+      <option value="">Все исполнители</option>
+      {% for a in assignees %}<option value="{{ a }}" {{ 'selected' if f_assignee==a else '' }}>{{ a }}</option>{% endfor %}
+    </select>
+  </form>
+</div>
+
+<div class="kanban-board">
+  {% for s in statuses %}
+  <div class="kanban-col" data-status="{{ s }}">
+    <div class="kanban-col-title"><span>{{ s }}</span><span>{{ columns[s]|length }}</span></div>
+    {% for t in columns[s] %}
+    <div class="kanban-card" draggable="true" data-id="{{ t.id }}">
+      <div class="kanban-card-title">{{ t.title }}</div>
+      <div class="kanban-card-meta">
+        <span>{{ t.assignee or '—' }}</span>
+        <span class="badge badge-{{ t.priority }}">{{ t.priority }}</span>
+      </div>
+      {% if t.due_date %}<div class="kanban-card-meta" style="margin-top:4px;"><span>{{ t.due_date }}</span>{% if t.overdue %}<span class="overdue-tag">просрочено</span>{% endif %}</div>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let draggedId = null;
+document.querySelectorAll('.kanban-card').forEach(card => {
+  card.addEventListener('dragstart', () => { draggedId = card.dataset.id; card.classList.add('dragging'); });
+  card.addEventListener('dragend', () => { card.classList.remove('dragging'); });
+});
+document.querySelectorAll('.kanban-col').forEach(col => {
+  col.addEventListener('dragover', e => { e.preventDefault(); col.classList.add('drag-over'); });
+  col.addEventListener('dragleave', () => col.classList.remove('drag-over'));
+  col.addEventListener('drop', e => {
+    e.preventDefault();
+    col.classList.remove('drag-over');
+    if (!draggedId) return;
+    fetch('/tasks/status/' + draggedId, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({status: col.dataset.status})
+    }).then(() => location.reload());
+  });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>{{ month_name }} <span class="muted">{{ year }}</span></h1>
+    <p class="muted">Смарт календарь</p>
+  </div>
+  <div class="month-nav">
+    <a class="btn-icon" href="{{ url_for('tasks_calendar', year=prev_y, month=prev_m) }}">‹</a>
+    <a class="btn-icon" href="{{ url_for('tasks_calendar', year=next_y, month=next_m) }}">›</a>
+  </div>
+</div>
+
+<div class="card">
+  <table class="cal-table">
+    <thead>
+      <tr>
+        <th>Пн</th><th>Вт</th><th>Ср</th><th>Чт</th><th>Пт</th><th>Сб</th><th>Вс</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for week in weeks %}
+      <tr>
+        {% for day in week %}
+        {% if day == 0 %}
+        <td class="other-month"></td>
+        {% else %}
+        <td class="{{ 'is-today' if today==(year,month,day) else '' }}">
+          <div class="cal-daynum">{{ day }}</div>
+          {% for t in by_day.get(day, []) %}
+          <div class="cal-task {{ 'overdue' if t.overdue else '' }}" title="{{ t.title }} — {{ t.assignee }}">{{ t.title }}</div>
+          {% endfor %}
+        </td>
+        {% endif %}
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

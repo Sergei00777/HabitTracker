@@ -401,3 +401,236 @@ def toggle_goal_step(step_id):
     conn.commit()
     conn.close()
     return new_done
+
+
+# ================================================================
+# ТРЕКЕР ЗАДАЧ (tasks / kanban / eisenhower / calendar / planner)
+# ================================================================
+
+STATUSES = ["Не начато", "В процессе", "В ожидании", "Приостановлено", "Выполнено"]
+PRIORITIES = ["Низкий", "Средний", "Высокий", "Критичный"]
+STATUS_ICON = {"Не начато": "○", "В процессе": "◐", "В ожидании": "⏳",
+               "Приостановлено": "⏸", "Выполнено": "✓"}
+
+
+def init_tasks_db():
+    conn = get_db()
+    cur = conn.cursor()
+    cur.executescript("""
+    CREATE TABLE IF NOT EXISTS tasks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        due_date TEXT,
+        assignee TEXT DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'Не начато',
+        category TEXT DEFAULT '',
+        priority TEXT NOT NULL DEFAULT 'Средний',
+        important INTEGER NOT NULL DEFAULT 0,
+        urgent INTEGER NOT NULL DEFAULT 0,
+        description TEXT DEFAULT '',
+        sort_order INTEGER DEFAULT 0
+    );
+    CREATE TABLE IF NOT EXISTS schedule_entries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT NOT NULL,
+        time_label TEXT NOT NULL,
+        task_id INTEGER REFERENCES tasks(id) ON DELETE SET NULL,
+        note TEXT DEFAULT '',
+        UNIQUE(date, time_label)
+    );
+    """)
+    conn.commit()
+
+    cur.execute("SELECT COUNT(*) FROM tasks")
+    if cur.fetchone()[0] == 0:
+        from datetime import timedelta
+        t = date.today()
+        seed = [
+            ("Проверить почту", (t + timedelta(days=1)).isoformat(), "Артём", "В процессе", "Работа/Учёба", "Высокий", 1, 1, ""),
+            ("10 минут растяжки", (t + timedelta(days=3)).isoformat(), "Оля", "В процессе", "Здоровье и спорт", "Средний", 0, 0, ""),
+            ("Сделать зарядку", (t + timedelta(days=4)).isoformat(), "Егор", "Не начато", "Здоровье и спорт", "Высокий", 1, 0, ""),
+            ("Медитация 5 минут", (t + timedelta(days=4)).isoformat(), "Алёна", "В процессе", "Саморазвитие", "Критичный", 1, 1, ""),
+            ("Записать расходы за день", (t + timedelta(days=5)).isoformat(), "Артём", "Не начато", "Финансы", "Критичный", 1, 1, ""),
+            ("Проверить календарь на встречи", (t + timedelta(days=7)).isoformat(), "Оля", "В ожидании", "Встречи", "Высокий", 1, 1, ""),
+            ("Подготовить обед", (t + timedelta(days=8)).isoformat(), "Алёна", "В процессе", "Домашние дела", "Средний", 0, 0, ""),
+            ("Заполнить дневник благодарности", (t + timedelta(days=9)).isoformat(), "Оля", "Не начато", "Личное", "Средний", 0, 0, ""),
+        ]
+        for i, s in enumerate(seed):
+            cur.execute("""INSERT INTO tasks (title, due_date, assignee, status, category, priority,
+                            important, urgent, description, sort_order) VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                        (*s, i))
+        conn.commit()
+    conn.close()
+
+
+def _task_row_to_dict(r, today):
+    d = dict(r)
+    if d["due_date"]:
+        due = date.fromisoformat(d["due_date"])
+        d["days_left"] = (due - today).days
+        d["overdue"] = due < today and d["status"] != "Выполнено"
+    else:
+        d["days_left"] = None
+        d["overdue"] = False
+    if d["important"] and d["urgent"]:
+        d["quadrant"] = "Сделать сейчас"
+    elif d["important"] and not d["urgent"]:
+        d["quadrant"] = "Запланировать"
+    elif not d["important"] and d["urgent"]:
+        d["quadrant"] = "Делегировать"
+    else:
+        d["quadrant"] = "Исключить"
+    return d
+
+
+def get_tasks(status=None, priority=None, assignee=None, category=None, q=None):
+    conn = get_db()
+    sql = "SELECT * FROM tasks WHERE 1=1"
+    params = []
+    if status:
+        sql += " AND status=?"; params.append(status)
+    if priority:
+        sql += " AND priority=?"; params.append(priority)
+    if assignee:
+        sql += " AND assignee=?"; params.append(assignee)
+    if category:
+        sql += " AND category=?"; params.append(category)
+    if q:
+        sql += " AND title LIKE ?"; params.append(f"%{q}%")
+    sql += " ORDER BY sort_order, id"
+    rows = conn.execute(sql, params).fetchall()
+    conn.close()
+    today = date.today()
+    return [_task_row_to_dict(r, today) for r in rows]
+
+
+def get_task(task_id):
+    conn = get_db()
+    r = conn.execute("SELECT * FROM tasks WHERE id=?", (task_id,)).fetchone()
+    conn.close()
+    return _task_row_to_dict(r, date.today()) if r else None
+
+
+def add_task(title, due_date, assignee, status, category, priority, important, urgent, description):
+    conn = get_db()
+    max_order = conn.execute("SELECT COALESCE(MAX(sort_order),-1) FROM tasks").fetchone()[0]
+    conn.execute("""INSERT INTO tasks (title, due_date, assignee, status, category, priority,
+                     important, urgent, description, sort_order) VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                 (title.strip(), due_date or None, assignee.strip(), status, category.strip(),
+                  priority, int(important), int(urgent), description.strip(), max_order + 1))
+    conn.commit()
+    conn.close()
+
+
+def update_task(task_id, **fields):
+    if not fields:
+        return
+    cols = ", ".join(f"{k}=?" for k in fields)
+    conn = get_db()
+    conn.execute(f"UPDATE tasks SET {cols} WHERE id=?", (*fields.values(), task_id))
+    conn.commit()
+    conn.close()
+
+
+def delete_task(task_id):
+    conn = get_db()
+    conn.execute("DELETE FROM tasks WHERE id=?", (task_id,))
+    conn.commit()
+    conn.close()
+
+
+def distinct_values(col):
+    conn = get_db()
+    rows = conn.execute(f"SELECT DISTINCT {col} FROM tasks WHERE {col}!='' ORDER BY {col}").fetchall()
+    conn.close()
+    return [r[0] for r in rows]
+
+
+def task_stats():
+    tasks = get_tasks()
+    total = len(tasks)
+    in_progress = sum(1 for t in tasks if t["status"] == "В процессе")
+    done = sum(1 for t in tasks if t["status"] == "Выполнено")
+    overdue = sum(1 for t in tasks if t["overdue"])
+    due7 = sum(1 for t in tasks if t["days_left"] is not None and 0 <= t["days_left"] <= 7 and t["status"] != "Выполнено")
+    due14 = sum(1 for t in tasks if t["days_left"] is not None and 0 <= t["days_left"] <= 14 and t["status"] != "Выполнено")
+    due30 = sum(1 for t in tasks if t["days_left"] is not None and 0 <= t["days_left"] <= 30 and t["status"] != "Выполнено")
+    progress_pct = round(done / total * 100) if total else 0
+
+    status_counts = {s: sum(1 for t in tasks if t["status"] == s) for s in STATUSES}
+    priority_counts = {p: sum(1 for t in tasks if t["priority"] == p) for p in PRIORITIES}
+    workload = {}
+    for t in tasks:
+        if t["assignee"]:
+            workload[t["assignee"]] = workload.get(t["assignee"], 0) + (1 if t["status"] != "Выполнено" else 0)
+
+    upcoming = sorted([t for t in tasks if t["due_date"] and t["status"] != "Выполнено"],
+                       key=lambda t: t["due_date"])[:6]
+
+    return {
+        "total": total, "in_progress": in_progress, "done": done, "overdue": overdue,
+        "due7": due7, "due14": due14, "due30": due30, "progress_pct": progress_pct,
+        "status_counts": status_counts, "priority_counts": priority_counts,
+        "workload": workload, "upcoming": upcoming,
+    }
+
+
+def matrix_tasks(assignee=None):
+    tasks = get_tasks(assignee=assignee)
+    tasks = [t for t in tasks if t["status"] != "Выполнено"]
+    quads = {"Сделать сейчас": [], "Запланировать": [], "Делегировать": [], "Исключить": []}
+    for t in tasks:
+        quads[t["quadrant"]].append(t)
+    total = len(tasks) or 1
+    pct = {k: round(len(v) / total * 100) for k, v in quads.items()}
+    return quads, pct
+
+
+def calendar_tasks(year, month):
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT * FROM tasks WHERE due_date LIKE ? ORDER BY due_date",
+        (f"{year:04d}-{month:02d}-%",)).fetchall()
+    conn.close()
+    today = date.today()
+    by_day = {}
+    for r in rows:
+        d = _task_row_to_dict(r, today)
+        day = int(d["due_date"][8:10])
+        by_day.setdefault(day, []).append(d)
+    return by_day
+
+
+# ---- Планировщик (дневной / недельный) ----
+
+DEFAULT_SLOTS = [f"{h:02d}:00" for h in list(range(6, 24)) + list(range(0, 2))]
+
+
+def get_schedule(iso_date):
+    conn = get_db()
+    rows = conn.execute("SELECT * FROM schedule_entries WHERE date=?", (iso_date,)).fetchall()
+    conn.close()
+    by_slot = {r["time_label"]: dict(r) for r in rows}
+    result = []
+    for slot in DEFAULT_SLOTS:
+        e = by_slot.get(slot)
+        result.append({"time": slot, "task_id": e["task_id"] if e else None,
+                        "note": e["note"] if e else ""})
+    return result
+
+
+def set_schedule_entry(iso_date, time_label, task_id, note):
+    conn = get_db()
+    existing = conn.execute("SELECT id FROM schedule_entries WHERE date=? AND time_label=?",
+                             (iso_date, time_label)).fetchone()
+    if not task_id and not note:
+        if existing:
+            conn.execute("DELETE FROM schedule_entries WHERE id=?", (existing["id"],))
+    elif existing:
+        conn.execute("UPDATE schedule_entries SET task_id=?, note=? WHERE id=?",
+                     (task_id or None, note, existing["id"]))
+    else:
+        conn.execute("INSERT INTO schedule_entries (date, time_label, task_id, note) VALUES (?,?,?,?)",
+                     (iso_date, time_label, task_id or None, note))
+    conn.commit()
+    conn.close()
