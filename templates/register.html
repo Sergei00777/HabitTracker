@@ -1,0 +1,49 @@
+<!-- templates/register.html -->
+{% extends "base_auth.html" %}
+{% block content %}
+<div class="auth-page">
+    <div class="auth-card">
+        <div class="auth-header">
+            <span class="brand-mark brand-mark-lg" aria-hidden="true"><i></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span>
+            <h1>Привычка<b>365</b></h1>
+            <p class="auth-sub">Создайте аккаунт — это займёт минуту</p>
+        </div>
+
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="flash-message">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <form method="post" action="{{ url_for('register') }}" class="auth-form">
+            <div class="form-group">
+                <label for="username">Имя пользователя</label>
+                <input type="text" id="username" name="username" placeholder="Придумайте логин" required>
+            </div>
+
+            <div class="form-group">
+                <label for="display_name">Ваше имя</label>
+                <input type="text" id="display_name" name="display_name" placeholder="Как вас называть?" required>
+            </div>
+
+            <div class="form-group">
+                <label for="password">Пароль</label>
+                <input type="password" id="password" name="password" placeholder="Минимум 6 символов" minlength="6" required>
+            </div>
+
+            <div class="form-group">
+                <label for="confirm_password">Подтвердите пароль</label>
+                <input type="password" id="confirm_password" name="confirm_password" placeholder="Повторите пароль" required>
+            </div>
+
+            <button type="submit" class="auth-btn">Зарегистрироваться</button>
+        </form>
+
+        <div class="auth-footer">
+            Уже есть аккаунт? <a href="{{ url_for('login') }}">Войти</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

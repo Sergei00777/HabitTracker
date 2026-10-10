@@ -1,0 +1,58 @@
+<!-- templates/admin_user.html -->
+{% extends "base.html" %}
+
+{% block content %}
+<div class="admin-page">
+    <div class="page-header">
+        <div>
+            <h1>👤 {{ user.display_name }}</h1>
+            <p class="muted">@{{ user.username }} &middot; ID: {{ user.id }}</p>
+        </div>
+        <div>
+            <a href="{{ url_for('admin_panel') }}" class="btn-icon" style="padding:8px 16px;text-decoration:none;font-size:13px;">← Назад</a>
+        </div>
+    </div>
+
+    <div class="admin-stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon">📅</div>
+            <div class="stat-number">{{ user.created_at[:10] }}</div>
+            <div class="stat-label">Дата регистрации</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">👁️</div>
+            <div class="stat-number">{{ user.visits }}</div>
+            <div class="stat-label">Посещений</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">📊</div>
+            <div class="stat-number">{{ user.daily_done }}/{{ user.daily_total }}</div>
+            <div class="stat-label">Прогресс за месяц</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">✅</div>
+            <div class="stat-number">{{ user.tasks_done }}/{{ user.tasks }}</div>
+            <div class="stat-label">Задач выполнено</div>
+        </div>
+    </div>
+
+    <div class="admin-row">
+        <div class="card">
+            <div class="card-title">Привычки</div>
+            <table class="stat-table">
+                <tr><td>Ежедневные</td><td>{{ user.daily_habits }}</td></tr>
+                <tr><td>Еженедельные</td><td>{{ user.weekly_habits }}</td></tr>
+                <tr><td>Ежемесячные</td><td>{{ user.monthly_habits }}</td></tr>
+            </table>
+        </div>
+        <div class="card">
+            <div class="card-title">Цели и задачи</div>
+            <table class="stat-table">
+                <tr><td>Цели</td><td>{{ user.goals }}</td></tr>
+                <tr><td>Задачи (всего)</td><td>{{ user.tasks }}</td></tr>
+                <tr><td>Задачи (выполнено)</td><td>{{ user.tasks_done }}</td></tr>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,57 +1,102 @@
 <!DOCTYPE html>
-<html lang="ru" data-theme="light">
+<html lang="ru">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Трекер Привычек</title>
+<title>{% block title %}Трекер привычек{% endblock %}</title>
+<script>
+  /* Тема применяется до отрисовки, чтобы не было «вспышки» светлой темы */
+  try { var t = localStorage.getItem('habit-tracker-theme'); if (t) document.documentElement.setAttribute('data-theme', t); } catch (e) {}
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&family=Unbounded:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
 <div class="app-shell">
   <aside class="sidebar">
-    <div class="brand">
-      <span class="brand-title">Трекер</span>
-      <span class="brand-sub">Привычек</span>
-    </div>
-    <nav class="nav">
+    <a class="brand" href="{{ url_for('index') }}">
+      <span class="brand-mark" aria-hidden="true">
+        <i></i><i></i><i></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i class="on"></i>
+      </span>
+      <span class="brand-text">
+        <span class="brand-title">Привычка<b>365</b></span>
+        <span class="brand-sub">трекер на каждый день</span>
+      </span>
+    </a>
+
+    <nav class="nav" aria-label="Разделы">
+      <div class="nav-group-label">Привычки</div>
       <a href="{{ url_for('daily', year=year|default(now_y), month=month|default(now_m)) }}"
          class="nav-link {{ 'active' if active=='daily' else '' }}">
-        <span class="nav-dot dot-daily"></span> Ежедневные
+        <svg class="nav-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="16" rx="3"/><path d="M3.5 9.5h17M8 2.5v4M16 2.5v4M8.5 14.5l2.2 2.2 4.8-4.8"/></svg>
+        Ежедневные
       </a>
       <a href="{{ url_for('weekly', year=year|default(now_y), month=month|default(now_m)) }}"
          class="nav-link {{ 'active' if active=='weekly' else '' }}">
-        <span class="nav-dot dot-weekly"></span> Еженедельные
+        <svg class="nav-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
+        Еженедельные
       </a>
       <a href="{{ url_for('monthly', year=year|default(now_y), month=month|default(now_m)) }}"
          class="nav-link {{ 'active' if active=='monthly' else '' }}">
-        <span class="nav-dot dot-monthly"></span> Ежемесячные
+        <svg class="nav-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6.5l1.8 1.8L10 5M5 12.5l1.8 1.8L10 11M5 18.5l1.8 1.8L10 17M13 7h7M13 13h7M13 19h7"/></svg>
+        Ежемесячные
       </a>
       <a href="{{ url_for('goals') }}" class="nav-link {{ 'active' if active=='goals' else '' }}">
-        <span class="nav-dot dot-goals"></span> Трекер целей
+        <svg class="nav-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r=".8"/></svg>
+        Цели
       </a>
-      <div class="nav-sep"></div>
+
+      <div class="nav-group-label">Задачи</div>
       <a href="{{ url_for('tasks_list') }}" class="nav-link {{ 'active' if active=='tasks' else '' }}">
-        <span class="nav-dot dot-tasks"></span> Трекер задач
+        <svg class="nav-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg>
+        Трекер задач
       </a>
       {% if active == 'tasks' %}
       <div class="subnav">
-        <a href="{{ url_for('tasks_list') }}" class="subnav-link {{ 'active' if tasks_tab=='list' else '' }}">Задачи</a>
-        <a href="{{ url_for('tasks_kanban') }}" class="subnav-link {{ 'active' if tasks_tab=='kanban' else '' }}">Канбан-доска</a>
-        <a href="{{ url_for('tasks_matrix') }}" class="subnav-link {{ 'active' if tasks_tab=='matrix' else '' }}">Матрица Эйзенхауэра</a>
-        <a href="{{ url_for('tasks_calendar', year=now_y, month=now_m) }}" class="subnav-link {{ 'active' if tasks_tab=='calendar' else '' }}">Смарт календарь</a>
-        <a href="{{ url_for('tasks_planner_daily') }}" class="subnav-link {{ 'active' if tasks_tab=='daily' else '' }}">Дневной планер</a>
-        <a href="{{ url_for('tasks_planner_weekly') }}" class="subnav-link {{ 'active' if tasks_tab=='weekly' else '' }}">Недельный планер</a>
+        <a href="{{ url_for('tasks_list') }}" class="subnav-link {{ 'active' if tasks_tab=='list' else '' }}">Список</a>
+        <a href="{{ url_for('tasks_kanban') }}" class="subnav-link {{ 'active' if tasks_tab=='kanban' else '' }}">Канбан</a>
+        <a href="{{ url_for('tasks_matrix') }}" class="subnav-link {{ 'active' if tasks_tab=='matrix' else '' }}">Матрица</a>
+        <a href="{{ url_for('tasks_calendar', year=now_y, month=now_m) }}" class="subnav-link {{ 'active' if tasks_tab=='calendar' else '' }}">Календарь</a>
+        <a href="{{ url_for('tasks_planner_daily') }}" class="subnav-link {{ 'active' if tasks_tab=='daily' else '' }}">План дня</a>
+        <a href="{{ url_for('tasks_planner_weekly') }}" class="subnav-link {{ 'active' if tasks_tab=='weekly' else '' }}">План недели</a>
       </div>
       {% endif %}
+
+      {% if current_user and current_user.is_admin %}
+      <div class="nav-group-label">Система</div>
+      <a href="{{ url_for('admin_panel') }}" class="nav-link {{ 'active' if active=='admin' else '' }}">
+        <svg class="nav-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7.5 3v5.5c0 4.5-3.2 8-7.5 9.5-4.3-1.5-7.5-5-7.5-9.5V6z"/></svg>
+        Админ-панель
+      </a>
+      {% endif %}
     </nav>
-    <button id="theme-toggle" class="theme-toggle" type="button">
-      <span id="theme-icon">🌙</span> <span id="theme-label">Тёмная тема</span>
-    </button>
+
+    <div class="sidebar-bottom">
+      {% if current_user %}
+      <div class="user-profile">
+        <div class="user-avatar">{{ (current_user.display_name or current_user.username)[0]|upper }}</div>
+        <div class="user-info">
+          <div class="user-name">{{ current_user.display_name or current_user.username }}</div>
+          <div class="user-username">@{{ current_user.username }}</div>
+        </div>
+        <a href="{{ url_for('logout') }}" class="logout-btn" title="Выйти" aria-label="Выйти">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h4.5A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5H14M10 16l-4-4 4-4M6 12h10"/></svg>
+        </a>
+      </div>
+      {% endif %}
+      <button id="theme-toggle" class="theme-toggle" type="button">
+        <svg class="theme-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg>
+        <span id="theme-label">Тёмная тема</span>
+      </button>
+    </div>
   </aside>
 
   <main class="content">
+    {% with messages = get_flashed_messages() %}
+      {% for message in messages %}<div class="flash-message">{{ message }}</div>{% endfor %}
+    {% endwith %}
     {% block content %}{% endblock %}
   </main>
 </div>

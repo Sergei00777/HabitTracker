@@ -1,145 +1,299 @@
 {% extends "base.html" %}
+{% block title %}{{ month_name }} {{ year }} · Ежедневные привычки{% endblock %}
 {% block content %}
+{% set wd = weekdays %}
 <div class="page-header">
   <div>
+    <div class="eyebrow">Ежедневные привычки</div>
     <h1>{{ month_name }} <span class="muted">{{ year }}</span></h1>
-    <p class="muted">Аналитика привычек</p>
   </div>
   <div class="month-nav">
-    <a class="btn-icon" href="{{ url_for('daily', year=prev_y, month=prev_m) }}">‹</a>
-    <form method="get" action="" class="inline-form" onsubmit="return false;">
-      <select onchange="location.href='/daily/'+this.value+'/{{ month }}'">
-        {% for yy in range(year-3, year+3) %}
-        <option value="{{ yy }}" {{ 'selected' if yy==year else '' }}>{{ yy }}</option>
-        {% endfor %}
-      </select>
-    </form>
-    <a class="btn-icon" href="{{ url_for('daily', year=next_y, month=next_m) }}">›</a>
-  </div>
-</div>
-
-<div class="top-row">
-  <div class="card chart-card">
-    <div class="card-title">Ежедневный прогресс, %</div>
-    <div class="bars-wrap" id="dayBars"></div>
-  </div>
-  <div class="card progress-card">
-    <div class="card-title">Прогресс</div>
-    <div class="donut-wrap">
-      <div class="css-donut" id="overallDonut" style="--pct: {{ stats.overall_pct }}; --donut-color: var(--sage);">
-        <div class="donut-hole"></div>
-      </div>
-      <div class="donut-center">
-        <div class="donut-pct">{{ stats.overall_pct }}%</div>
-      </div>
-    </div>
-    <div class="donut-sub">{{ stats.total_done }} / {{ stats.total_goal }}</div>
-  </div>
-</div>
-
-<div class="main-grid">
-  <div class="card habit-list-card">
-    <div class="card-title">Ежедневные привычки</div>
-    <table class="habit-names">
-      {% for h in habits %}
-      <tr>
-        <td class="hnum">{{ loop.index }}</td>
-        <td class="hname">{{ h.name }}</td>
-        <td class="hdel">
-          <form method="post" action="{{ url_for('daily_delete', habit_id=h.id) }}">
-            <input type="hidden" name="year" value="{{ year }}">
-            <input type="hidden" name="month" value="{{ month }}">
-            <button class="del-btn" title="Удалить">✕</button>
-          </form>
-        </td>
-      </tr>
+    <a class="btn-icon" href="{{ url_for('daily', year=prev_y, month=prev_m) }}" aria-label="Предыдущий месяц">‹</a>
+    {% if not is_current_month %}<a class="btn-ghost" href="{{ url_for('daily', year=now_y, month=now_m) }}">Сегодня</a>{% endif %}
+    <select aria-label="Год" onchange="location.href='/daily/'+this.value+'/{{ month }}'">
+      {% for yy in range(year-3, year+3) %}
+      <option value="{{ yy }}" {{ 'selected' if yy==year else '' }}>{{ yy }}</option>
       {% endfor %}
-    </table>
-    <form method="post" action="{{ url_for('daily_add') }}" class="add-habit-form">
-      <input type="hidden" name="year" value="{{ year }}">
-      <input type="hidden" name="month" value="{{ month }}">
-      <input type="text" name="name" placeholder="Новая привычка…" required>
-      <input type="number" name="goal" placeholder="цель (раз/мес)" min="1" style="width:110px">
-      <button type="submit">+ Добавить</button>
-    </form>
+    </select>
+    <a class="btn-icon" href="{{ url_for('daily', year=next_y, month=next_m) }}" aria-label="Следующий месяц">›</a>
+    <a class="btn-ghost" href="{{ url_for('daily_export') }}" title="Скачать все отметки в CSV (открывается в Excel)">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 19.5h14"/></svg> CSV
+    </a>
   </div>
+</div>
 
-  <div class="card grid-card">
-    <div class="card-title">{{ ndays }} дней</div>
-    <div class="grid-scroll">
-      <table class="habit-grid">
-        <thead>
-          <tr class="weekday-row">
-            <th></th>
-            {% for d in range(1, ndays+1) %}
-            <th class="{{ 'is-today' if today==(year,month,d) else '' }}">
-              {{ weekdays[(date(year,month,d).weekday())] }}
-            </th>
-            {% endfor %}
-          </tr>
-          <tr class="daynum-row">
-            <th></th>
-            {% for d in range(1, ndays+1) %}
-            <th class="{{ 'is-today' if today==(year,month,d) else '' }}">{{ d }}</th>
-            {% endfor %}
-          </tr>
-        </thead>
-        <tbody>
-          {% for h in habits %}
-          <tr>
-            <td class="row-label">{{ loop.index }}</td>
-            {% for d in range(1, ndays+1) %}
-            <td class="{{ 'is-today' if today==(year,month,d) else '' }}">
-              <input type="checkbox" class="daily-check"
-                     data-habit="{{ h.id }}" data-day="{{ d }}"
-                     {{ 'checked' if entries.get((h.id, d), False) else '' }}>
-            </td>
-            {% endfor %}
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+{# ---------- Сводка ---------- #}
+<div class="kpi-strip">
+  {% if is_current_month %}
+  <div class="kpi kpi-today">
+    <div class="kpi-ring css-donut" id="todayRing" style="--pct: {{ (stats.today_done / stats.habits_count * 100)|round|int if stats.habits_count else 0 }}; --donut-color: var(--accent);"><div class="donut-hole"></div></div>
+    <div>
+      <div class="kpi-num"><span id="kpiToday">{{ stats.today_done }}</span><small>/{{ stats.habits_count }}</small></div>
+      <div class="kpi-lbl">сделано сегодня</div>
+    </div>
+  </div>
+  {% endif %}
+  <div class="kpi">
+    <div class="kpi-num"><span id="kpiPct">{{ stats.overall_pct }}</span><small>%</small></div>
+    <div class="kpi-lbl">регулярность за месяц</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-num"><span id="kpiDone">{{ stats.total_done }}</span><small>/{{ stats.total_goal }}</small></div>
+    <div class="kpi-lbl">отметок от цели</div>
+  </div>
+  <div class="kpi kpi-flame">
+    <div class="kpi-num"><span id="kpiBest">{{ best_streak }}</span><small> дн.</small></div>
+    <div class="kpi-lbl">лучшая серия</div>
+  </div>
+</div>
+
+{# ---------- Сегодня: быстрые отметки ---------- #}
+{% if is_current_month and habits %}
+<section class="card today-card">
+  <div class="card-head">
+    <div class="card-title">Сегодня · {{ today[2] }} {{ month_name|lower }}, {{ wd[date(year,month,today[2]).weekday()]|lower }}</div>
+    <div class="card-hint">Нажмите, чтобы отметить</div>
+  </div>
+  <div class="today-list">
+    {% for h in habits %}
+    {% set st = entries.get((h.id, today[2]), 0) %}
+    <div class="today-item" data-habit="{{ h.id }}" data-state="{{ st }}">
+      <button type="button" class="today-main" data-habit="{{ h.id }}" data-day="{{ today[2] }}" aria-pressed="{{ 'true' if st==1 else 'false' }}">
+        <span class="today-check" aria-hidden="true"></span>
+        <span class="today-name">{{ h.name }}</span>
+        <span class="streak" title="Текущая серия, дней подряд"><span data-streak="{{ h.id }}">{{ streaks[h.id].current }}</span></span>
+      </button>
+      <button type="button" class="today-skip" data-habit="{{ h.id }}" data-day="{{ today[2] }}" title="Пропуск: день отдыха, серия не прервётся">пропуск</button>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{# ---------- Сетка месяца ---------- #}
+<section class="card grid-card">
+  <div class="card-head">
+    <div class="card-title">Месяц целиком · {{ ndays }} дней</div>
+    <div class="legend">
+      <span class="legend-item"><span class="cell-demo is-done"></span>выполнено</span>
+      <span class="legend-item"><span class="cell-demo is-skip"></span>пропуск</span>
+      <span class="legend-item"><span class="cell-demo"></span>не отмечено</span>
+      <span class="legend-note">Пропуск: правый клик или долгое нажатие</span>
     </div>
   </div>
 
-  <div class="card top10-card">
-    <div class="card-title">ТОП самых стабильных</div>
-    <table class="top10-table">
-      <thead><tr><th>Привычка</th><th>%</th></tr></thead>
-      <tbody id="top10-body">
-        {% for r in stats.top10 %}
-        <tr><td>{{ r.name }}</td><td>{{ r.percent }}%</td></tr>
+  {% if habits %}
+  <div class="grid-scroll">
+    <table class="habit-grid">
+      <thead>
+        <tr>
+          <th class="col-name" scope="col">Привычка</th>
+          {% for d in range(1, ndays+1) %}
+          {% set wdi = date(year,month,d).weekday() %}
+          <th scope="col" class="{{ 'is-today' if today==(year,month,d) else '' }} {{ 'is-weekend' if wdi >= 5 else '' }}">
+            <span class="th-wd">{{ wd[wdi] }}</span><span class="th-d">{{ d }}</span>
+          </th>
+          {% endfor %}
+          <th class="col-stat" scope="col">%</th>
+          <th class="col-stat" scope="col" title="Текущая серия">Серия</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for h in habits %}
+        <tr data-habit="{{ h.id }}">
+          <th class="col-name" scope="row"><div class="name-cell">
+            <span class="row-name" title="{{ h.name }}">{{ h.name }}</span>
+            <form method="post" action="{{ url_for('daily_delete', habit_id=h.id) }}" class="row-del" onsubmit="return confirmDelete(this, event)">
+              <input type="hidden" name="year" value="{{ year }}">
+              <input type="hidden" name="month" value="{{ month }}">
+              <button class="del-btn" title="Удалить привычку «{{ h.name }}»" aria-label="Удалить">✕</button>
+            </form>
+          </div></th>
+          {% for d in range(1, ndays+1) %}
+          {% set st = entries.get((h.id, d), 0) %}
+          <td class="{{ 'is-today' if today==(year,month,d) else '' }} {{ 'is-weekend' if date(year,month,d).weekday() >= 5 else '' }}">
+            <button type="button" class="cell {{ 'is-done' if st==1 else 'is-skip' if st==2 else '' }}"
+                    data-habit="{{ h.id }}" data-day="{{ d }}" data-state="{{ st }}"
+                    aria-label="{{ h.name }}, {{ d }} число"></button>
+          </td>
+          {% endfor %}
+          <td class="col-stat"><span data-pct="{{ h.id }}">{{ stats.per_habit[h.id].percent }}</span>%</td>
+          <td class="col-stat"><span class="streak streak-sm"><span data-streak="{{ h.id }}">{{ streaks[h.id].current }}</span></span></td>
+        </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
+  {% else %}
+  <div class="empty-state">
+    <div class="empty-title">Пока нет ни одной привычки</div>
+    <p>Начните с одной — так проще втянуться. Добавьте её ниже или выберите из готовых.</p>
+  </div>
+  {% endif %}
+
+  <form method="post" action="{{ url_for('daily_add') }}" class="add-habit-form add-inline">
+    <input type="hidden" name="year" value="{{ year }}">
+    <input type="hidden" name="month" value="{{ month }}">
+    <input type="text" id="new-habit-name" name="name" placeholder="Новая привычка, например «Читать 20 минут»" required maxlength="80">
+    <label class="goal-field" title="Сколько раз за месяц хотите выполнить. Пусто — каждый день">
+      <span>цель</span>
+      <input type="number" id="new-habit-goal" name="goal" placeholder="{{ ndays }}" min="1" max="{{ ndays }}">
+      <span>раз/мес</span>
+    </label>
+    <button type="submit" class="btn-primary">Добавить</button>
+  </form>
+</section>
+
+{# ---------- Аналитика ---------- #}
+<div class="analytics-row">
+  <section class="card chart-card">
+    <div class="card-head">
+      <div class="card-title">Выполнение по дням, %</div>
+      <div class="card-hint">пропуски не снижают процент</div>
+    </div>
+    <div class="chart-area">
+      <div class="chart-grid" aria-hidden="true"><span>100</span><span>50</span><span>0</span></div>
+      <div class="bars-wrap" id="dayBars"></div>
+    </div>
+  </section>
+
+  <section class="card top10-card">
+    <div class="card-title">Самые стабильные</div>
+    <ol class="rank-list" id="top10-body">
+      {% for r in stats.top10 %}
+      <li><span class="rank-name">{{ r.name }}</span><span class="rank-bar"><i style="width: {{ r.percent }}%"></i></span><span class="rank-val">{{ r.percent }}%</span></li>
+      {% endfor %}
+    </ol>
+  </section>
 </div>
+
+{% if library %}
+<section class="card library-card">
+  <div class="card-head">
+    <div class="card-title">Готовые привычки</div>
+    <div class="card-hint">Нажмите, чтобы добавить. Лучше начинать с 1–3, а не со всех сразу</div>
+  </div>
+  <div class="library">
+    {% for sphere, names in library %}
+    <div class="library-group">
+      <div class="library-sphere">{{ sphere }}</div>
+      <form method="post" action="{{ url_for('daily_add') }}" class="chip-row">
+        <input type="hidden" name="year" value="{{ year }}">
+        <input type="hidden" name="month" value="{{ month }}">
+        {% for n in names %}<button type="submit" name="name" value="{{ n }}" class="chip">+ {{ n }}</button>{% endfor %}
+      </form>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
 <script>
-const dayLabels = [{% for d in range(1, ndays+1) %}{{ d }},{% endfor %}];
-const dayPercent = {{ stats.day_percent }};
+(function () {
+  const Y = {{ year }}, M = {{ month }};
+  const TODAY = {{ today[2] if is_current_month else 0 }};
+  const dayLabels = [{% for d in range(1, ndays+1) %}{{ d }},{% endfor %}];
+  const habitsCount = {{ stats.habits_count }};
+  const barsEl = document.getElementById('dayBars');
+  renderBars(barsEl, {{ stats.day_percent|tojson }}, dayLabels, {today: TODAY});
 
-renderBars(document.getElementById('dayBars'), dayPercent, dayLabels);
-
-document.querySelectorAll('.daily-check').forEach(cb => {
-  cb.addEventListener('change', () => {
-    fetch('/daily/toggle', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({habit_id: cb.dataset.habit, day: cb.dataset.day, year: {{ year }}, month: {{ month }}})
-    }).then(r => r.json()).then(data => {
-      renderBars(document.getElementById('dayBars'), data.stats.day_percent, dayLabels);
-      setDonut(document.getElementById('overallDonut'), data.stats.overall_pct);
-      document.querySelector('.donut-pct').textContent = data.stats.overall_pct + '%';
-      document.querySelector('.donut-sub').textContent = data.stats.total_done + ' / ' + data.stats.total_goal;
-      const tbody = document.getElementById('top10-body');
-      tbody.innerHTML = '';
-      data.stats.top10.forEach(r => {
-        tbody.innerHTML += `<tr><td>${r.name}</td><td>${r.percent}%</td></tr>`;
-      });
+  function applyState(habit, day, state) {
+    document.querySelectorAll('.cell[data-habit="' + habit + '"][data-day="' + day + '"]').forEach(c => {
+      c.dataset.state = state;
+      c.classList.toggle('is-done', state === 1);
+      c.classList.toggle('is-skip', state === 2);
     });
+    if (day === TODAY) {
+      const item = document.querySelector('.today-item[data-habit="' + habit + '"]');
+      if (item) {
+        item.dataset.state = state;
+        item.querySelector('.today-main').setAttribute('aria-pressed', state === 1 ? 'true' : 'false');
+      }
+    }
+  }
+
+  function applyStats(data) {
+    const s = data.stats;
+    renderBars(barsEl, s.day_percent, dayLabels, {today: TODAY});
+    setText('kpiPct', s.overall_pct);
+    setText('kpiDone', s.total_done);
+    if (s.today_done !== null && document.getElementById('kpiToday')) {
+      setText('kpiToday', s.today_done);
+      setDonut(document.getElementById('todayRing'), habitsCount ? Math.round(s.today_done / habitsCount * 100) : 0);
+    }
+    let best = 0;
+    Object.keys(data.streaks).forEach(id => {
+      const v = data.streaks[id];
+      best = Math.max(best, v.best);
+      document.querySelectorAll('[data-streak="' + id + '"]').forEach(el => el.textContent = v.current);
+    });
+    setText('kpiBest', best);
+    Object.keys(s.per_habit).forEach(id => {
+      const el = document.querySelector('[data-pct="' + id + '"]');
+      if (el) el.textContent = s.per_habit[id].percent;
+    });
+    const list = document.getElementById('top10-body');
+    list.textContent = '';
+    s.top10.forEach(r => {
+      const li = document.createElement('li');
+      const n = document.createElement('span'); n.className = 'rank-name'; n.textContent = r.name;
+      const b = document.createElement('span'); b.className = 'rank-bar';
+      const i = document.createElement('i'); i.style.width = r.percent + '%'; b.appendChild(i);
+      const v = document.createElement('span'); v.className = 'rank-val'; v.textContent = r.percent + '%';
+      li.append(n, b, v); list.appendChild(li);
+    });
+  }
+
+  function setText(id, v) { const el = document.getElementById(id); if (el) el.textContent = v; }
+
+  function save(habit, day, state) {
+    const prev = currentState(habit, day);
+    applyState(habit, day, state);            // сразу показываем — без ожидания сервера
+    fetch('/daily/set', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({habit_id: habit, day: day, year: Y, month: M, state: state})
+    }).then(r => { if (!r.ok) throw new Error(); return r.json(); })
+      .then(data => { applyState(habit, day, data.state); applyStats(data); })
+      .catch(() => { applyState(habit, day, prev); toast('Не удалось сохранить. Проверьте соединение и попробуйте ещё раз.'); });
+  }
+
+  function currentState(habit, day) {
+    const c = document.querySelector('.cell[data-habit="' + habit + '"][data-day="' + day + '"]');
+    if (c) return +c.dataset.state;
+    const item = document.querySelector('.today-item[data-habit="' + habit + '"]');
+    return item ? +item.dataset.state : 0;
+  }
+
+  // клик: выполнено ↔ пусто; правый клик / долгое нажатие: пропуск ↔ пусто
+  function bind(el, onTap, onAlt) {
+    let timer = null, long = false;
+    el.addEventListener('pointerdown', e => {
+      if (e.pointerType === 'mouse') return;
+      long = false;
+      timer = setTimeout(() => { long = true; onAlt(); if (navigator.vibrate) navigator.vibrate(15); }, 450);
+    });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(t => el.addEventListener(t, () => clearTimeout(timer)));
+    el.addEventListener('click', e => { if (long) { e.preventDefault(); long = false; return; } onTap(); });
+    if (onAlt) el.addEventListener('contextmenu', e => { e.preventDefault(); if (!long) onAlt(); });
+  }
+
+  document.querySelectorAll('.cell, .today-main').forEach(el => {
+    const h = +el.dataset.habit, d = +el.dataset.day;
+    bind(el,
+      () => save(h, d, currentState(h, d) === 1 ? 0 : 1),
+      () => save(h, d, currentState(h, d) === 2 ? 0 : 2));
   });
-});
+  document.querySelectorAll('.today-skip').forEach(el => {
+    const h = +el.dataset.habit, d = +el.dataset.day;
+    el.addEventListener('click', () => save(h, d, currentState(h, d) === 2 ? 0 : 2));
+  });
+
+  // прокрутить сетку к сегодняшнему дню
+  const todayTh = document.querySelector('.habit-grid thead th.is-today');
+  const scroller = document.querySelector('.grid-scroll');
+  if (todayTh && scroller) scroller.scrollLeft = Math.max(0, todayTh.offsetLeft - scroller.clientWidth / 2);
+})();
 </script>
 {% endblock %}

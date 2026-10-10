@@ -1,0 +1,200 @@
+<!-- templates/admin.html -->
+{% extends "base.html" %}
+
+{% block content %}
+<div class="admin-page">
+    <div class="page-header">
+        <div>
+            <h1>👑 Админ-панель</h1>
+            <p class="muted">Статистика и управление системой</p>
+        </div>
+        <div style="display:flex;gap:8px;">
+            <span class="badge badge-admin">Администратор</span>
+        </div>
+    </div>
+
+    <!-- Основные метрики -->
+    <div class="admin-stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon">👥</div>
+            <div class="stat-number">{{ stats.total_users }}</div>
+            <div class="stat-label">Всего пользователей</div>
+            <div class="stat-sub">из них админов: {{ stats.total_admins }}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">📊</div>
+            <div class="stat-number">{{ stats.total_visits }}</div>
+            <div class="stat-label">Всего посещений</div>
+            <div class="stat-sub">сегодня: {{ stats.today_visits }}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">🆕</div>
+            <div class="stat-number">{{ stats.unique_visitors }}</div>
+            <div class="stat-label">Уникальных посетителей</div>
+            <div class="stat-sub">за всё время</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">📈</div>
+            <div class="stat-number">{{ stats.content_stats.tasks }}</div>
+            <div class="stat-label">Всего задач</div>
+            <div class="stat-sub">выполнено: {{ stats.content_stats.tasks_done }}</div>
+        </div>
+    </div>
+
+    <!-- Статистика по дням -->
+    <div class="admin-row">
+        <div class="card admin-chart-card">
+            <div class="card-title">Посещения за последние 30 дней</div>
+            <div class="bars-wrap" id="adminDayBars" style="height:150px;"></div>
+        </div>
+        <div class="card admin-chart-card">
+            <div class="card-title">Активность по часам</div>
+            <div class="bars-wrap" id="adminHourBars" style="height:150px;"></div>
+        </div>
+    </div>
+
+    <!-- Топ пользователей и статистика контента -->
+    <div class="admin-row">
+        <div class="card">
+            <div class="card-title">🏆 Топ-10 активных пользователей</div>
+            <table class="top10-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Пользователь</th>
+                        <th>Посещений</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for u in stats.top_users %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
+                        <td>{{ u.display_name }} <span class="muted">(@{{ u.username }})</span></td>
+                        <td>{{ u.visits }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="3" class="muted">Нет данных</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card">
+            <div class="card-title">📦 Статистика контента</div>
+            <table class="stat-table">
+                <tr><td>Ежедневные привычки</td><td>{{ stats.content_stats.daily_habits }}</td></tr>
+                <tr><td>Еженедельные привычки</td><td>{{ stats.content_stats.weekly_habits }}</td></tr>
+                <tr><td>Ежемесячные привычки</td><td>{{ stats.content_stats.monthly_habits }}</td></tr>
+                <tr><td>Цели</td><td>{{ stats.content_stats.goals }}</td></tr>
+                <tr><td>Задачи (всего)</td><td>{{ stats.content_stats.tasks }}</td></tr>
+                <tr><td>Задачи (выполнено)</td><td>{{ stats.content_stats.tasks_done }}</td></tr>
+            </table>
+        </div>
+    </div>
+
+    <!-- Список всех пользователей -->
+    <div class="card">
+        <div class="card-title">👤 Все пользователи</div>
+        <div style="overflow-x:auto;">
+            <table class="tasks-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Имя</th>
+                        <th>Логин</th>
+                        <th>Админ</th>
+                        <th>Зарегистрирован</th>
+                        <th>Привычек</th>
+                        <th>Целей</th>
+                        <th>Задач</th>
+                        <th>Посещений</th>
+                        <th>Прогресс</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for u in users %}
+                    <tr>
+                        <td>{{ u.id }}</td>
+                        <td><strong>{{ u.display_name }}</strong></td>
+                        <td>@{{ u.username }}</td>
+                        <td>{% if u.is_admin %}👑{% else %}—{% endif %}</td>
+                        <td class="muted">{{ u.created_at[:10] }}</td>
+                        <td>{{ u.daily_habits or 0 }}/{{ u.weekly_habits or 0 }}/{{ u.monthly_habits or 0 }}</td>
+                        <td>{{ u.goals or 0 }}</td>
+                        <td>{{ u.tasks or 0 }}</td>
+                        <td>{{ u.visits or 0 }}</td>
+                        <td>
+                            {% set total = (u.daily_habits or 0) + (u.weekly_habits or 0) + (u.monthly_habits or 0) %}
+                            {% set done = u.done_daily or 0 %}
+                            {% if total > 0 %}
+                                <span class="badge badge-{{ 'Высокий' if (done/total*100) > 50 else 'Средний' if (done/total*100) > 25 else 'Низкий' }}">
+                                    {{ (done/total*100)|round|int }}%
+                                </span>
+                            {% else %}
+                                <span class="muted">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="10" class="muted">Нет пользователей</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// График посещений по дням
+const dayData = {{ stats.daily_visits|tojson }};
+const dayLabels = dayData.map(d => d.day.slice(5));
+const dayValues = dayData.map(d => d.count);
+
+const dayContainer = document.getElementById('adminDayBars');
+if (dayContainer) {
+    dayContainer.innerHTML = '';
+    const maxVal = Math.max(...dayValues, 1);
+    dayValues.forEach((v, i) => {
+        const col = document.createElement('div');
+        col.className = 'bar-col';
+        const bar = document.createElement('div');
+        bar.className = 'bar' + (v > 0 ? ' bar-good' : '');
+        bar.style.height = Math.max(2, (v / maxVal * 100)) + '%';
+        bar.title = dayLabels[i] + ': ' + v + ' посещений';
+        col.appendChild(bar);
+        const label = document.createElement('div');
+        label.className = 'bar-day-label';
+        label.textContent = dayLabels[i];
+        col.appendChild(label);
+        dayContainer.appendChild(col);
+    });
+}
+
+// График активности по часам
+const hourData = {{ stats.hourly_visits|tojson }};
+const hourLabels = hourData.map(d => d.hour + ':00');
+const hourValues = hourData.map(d => d.count);
+
+const hourContainer = document.getElementById('adminHourBars');
+if (hourContainer) {
+    hourContainer.innerHTML = '';
+    const maxVal = Math.max(...hourValues, 1);
+    hourValues.forEach((v, i) => {
+        const col = document.createElement('div');
+        col.className = 'bar-col';
+        const bar = document.createElement('div');
+        bar.className = 'bar' + (v > 0 ? ' bar-good' : '');
+        bar.style.height = Math.max(2, (v / maxVal * 100)) + '%';
+        bar.title = hourLabels[i] + ': ' + v + ' посещений';
+        col.appendChild(bar);
+        const label = document.createElement('div');
+        label.className = 'bar-day-label';
+        label.textContent = hourLabels[i];
+        col.appendChild(label);
+        hourContainer.appendChild(col);
+    });
+}
+</script>
+{% endblock %}
